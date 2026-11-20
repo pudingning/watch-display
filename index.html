@@ -6,22 +6,246 @@
   <meta name="viewport"
         content="width=device-width, initial-scale=1">
   <title>Watch Display</title>
+
   <style>
     body {
-      background: black;
+      background: #111;
       color: white;
-      text-align: center;
       font-family: Arial, sans-serif;
+      text-align: center;
       padding: 20px;
     }
+
+    input, button {
+      box-sizing: border-box;
+      width: 100%;
+      max-width: 350px;
+      padding: 14px;
+      margin: 7px 0;
+      border-radius: 10px;
+      font-size: 16px;
+    }
+
+    input {
+      background: white;
+      color: black;
+      border: none;
+    }
+
+    button {
+      background: #3478f6;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+
     #message {
-      font-size: 36px;
-      margin-top: 30px;
+      font-size: 38px;
+      font-weight: bold;
+      margin: 35px 0;
+      overflow-wrap: anywhere;
+    }
+
+    #status {
+      color: #aaa;
+      font-size: 13px;
     }
   </style>
 </head>
+
 <body>
-  <h3>Watch Display</h3>
-  <div id="message">연결 테스트 성공!</div>
+  <h2>Watch Display</h2>
+
+  <div id="loginBox">
+    <h3>로그인</h3>
+
+    <input
+      id="email"
+      type="email"
+      placeholder="Firebase 이메일">
+
+    <input
+      id="password"
+      type="password"
+      placeholder="비밀번호">
+
+    <button id="loginBtn">
+      로그인
+    </button>
+  </div>
+
+  <div id="appBox" hidden>
+    <div id="message">
+      데이터 기다리는 중...
+    </div>
+
+    <input
+      id="inputText"
+      maxlength="300"
+      placeholder="전송할 문장 입력">
+
+    <button id="sendBtn">
+      전송하기
+    </button>
+
+    <button id="logoutBtn">
+      로그아웃
+    </button>
+  </div>
+
+  <p id="status">
+    연결 준비 중...
+  </p>
+
+  <script type="module">
+
+    import { initializeApp }
+    from "https://www.gstatic.com/firebasejs/13.4.0/firebase-app.js";
+
+    import {
+      getAuth,
+      signInWithEmailAndPassword,
+      onAuthStateChanged,
+      signOut
+    }
+    from "https://www.gstatic.com/firebasejs/13.4.0/firebase-auth.js";
+
+    import {
+      getDatabase,
+      ref,
+      set,
+      onValue
+    }
+    from "https://www.gstatic.com/firebasejs/13.4.0/firebase-database.js";
+
+    // Firebase 설정 정보
+    const firebaseConfig = {
+      apiKey: "AIzaSyDL9T1ST01bMJNqwfVhtvreoOk0NsemlR4",
+      authDomain: "watch-display.firebaseapp.com",
+      databaseURL: "https://watch-display-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "watch-display",
+      storageBucket: "watch-display.firebasestorage.app",
+      messagingSenderId: "670497316914",
+      appId: "1:670497316914:web:55f7dab90ef771ee7a5c2b"
+    };
+
+    // Firebase 초기화
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getDatabase(app);
+
+    const displayRef = ref(db, "display");
+
+    const status =
+      document.getElementById("status");
+
+    const message =
+      document.getElementById("message");
+
+    let stopListening = null;
+
+    // 로그인 버튼
+    document.getElementById("loginBtn")
+      .onclick = async () => {
+
+      const email =
+        document.getElementById("email")
+        .value.trim();
+
+      const password =
+        document.getElementById("password")
+        .value;
+
+      try {
+        await signInWithEmailAndPassword(
+          auth,
+          email,
+          password
+        );
+
+      } catch (error) {
+        status.textContent =
+          "로그인 실패: " + error.code;
+      }
+    };
+
+    // 로그인 상태 확인
+    onAuthStateChanged(auth, user => {
+
+      if (stopListening) {
+        stopListening();
+        stopListening = null;
+      }
+
+      document.getElementById("loginBox")
+        .hidden = !!user;
+
+      document.getElementById("appBox")
+        .hidden = !user;
+
+      if (user) {
+
+        status.textContent =
+          "로그인 성공 · 데이터 연결 중";
+
+        // 실시간 데이터 수신
+        stopListening = onValue(
+          displayRef,
+
+          snapshot => {
+            message.textContent =
+              snapshot.exists()
+                ? snapshot.val()
+                : "전송 대기 중";
+
+            status.textContent =
+              "실시간 연결됨";
+          },
+
+          error => {
+            status.textContent =
+              "읽기 오류: " + error.code;
+          }
+        );
+
+      } else {
+        message.textContent =
+          "데이터 기다리는 중...";
+
+        status.textContent =
+          "로그인이 필요합니다";
+      }
+    });
+
+    // 전송 버튼
+    document.getElementById("sendBtn")
+      .onclick = async () => {
+
+      const value =
+        document.getElementById("inputText")
+        .value.trim();
+
+      if (!value) return;
+
+      try {
+        await set(displayRef, value);
+
+        status.textContent =
+          "전송 완료";
+
+      } catch (error) {
+        status.textContent =
+          "전송 실패: " + error.code;
+      }
+    };
+
+    // 로그아웃 버튼
+    document.getElementById("logoutBtn")
+      .onclick = async () => {
+
+      await signOut(auth);
+    };
+
+  </script>
 </body>
 </html>
